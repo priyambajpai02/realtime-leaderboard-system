@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaderboard API Tester</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex: 1;
+            min-width: 300px;
+        }
+        h1, h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input, select, button, textarea {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.secondary {
+            background-color: #2196F3;
+        }
+        button.secondary:hover {
+            background-color: #0b7dda;
+        }
+        .response {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            display: block;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            display: block;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: none;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .config-panel {
+            background-color: #e9f7ef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Leaderboard API Tester</h1>
+    
+    <div class="config-panel">
+        <h2>Configuration</h2>
+        <form id="config-form">
+            <label for="api-base-url">API Base URL:</label>
+            <input type="text" id="api-base-url" value="http://localhost:3000" placeholder="http://localhost:3000">
+            <button type="submit" class="secondary">Save Configuration</button>
+        </form>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="openTab('rest-tab')">REST API</button>
+        <button class="tab" onclick="openTab('websocket-tab')">WebSocket</button>
+    </div>
+
+    <div id="rest-tab" class="tab-content active">
+        <div class="container">
+            <div class="panel">
+                <h2>Player Management</h2>
+                <form id="player-form">
+                    <label for="player-id">Player ID:</label>
+                    <input type="text" id="player-id" required>
+                    
+                    <label for="player-name">Player Name:</label>
+                    <input type="text" id="player-name" required>
+                    
+                    <label for="player-region">Region:</label>
+                    <select id="player-region" required>
+                        <option value="global">Global</option>
+                        <option value="na">North America</option>
+                        <option value="eu">Europe</option>
+                        <option value="asia">Asia</option>
+                    </select>
+                    
+                    <button type="submit">Register Player</button>
+                </form>
+                
+                <h3>Get Player</h3>
+                <form id="get-player-form">
+                    <label for="get-player-id">Player ID:</label>
+                    <input type="text" id="get-player-id" required>
+                    <button type="submit">Get Player</button>
+                </form>
+                
+                <div id="player-response" class="response"></div>
+                <div id="player-status" class="status"></div>
+            </div>
+            
+            <div class="panel">
+                <h2>Leaderboard</h2>
+                <form id="leaderboard-form">
+                    <label for="lb-region">Region:</label>
+                    <select id="lb-region">
+                        <option value="global">Global</option>
+                        <option value="na">North America</option>
+                        <option value="eu">Europe</option>
+                        <option value="asia">Asia</option>
+                    </select>
+                    
+                    <label for="lb-game-mode">Game Mode:</label>
+                    <select id="lb-game-mode">
+                        <option value="default">Default</option>
+                        <option value="classic">Classic</option>
+                        <option value="ranked">Ranked</option>
+                    </select>
+                    
+                    <label for="lb-limit">Limit:</label>
+                    <input type="number" id="lb-limit" value="10" min="1" max="100">
+                    
+                    <button type="submit">Get Leaderboard</button>
+                </form>
+                
+                <h3>Update Score</h3>
+                <form id="score-form">
+                    <label for="score-player-id">Player ID:</label>
+                    <input type="text" id="score-player-id" required>
+                    
+                    <label for="score-region">Region:</label>
+                    <select id="score-region" required>
+                        <option value="global">Global</option>
+                        <option value="na">North America</option>
+                        <option value="eu">Europe</option>
+                        <option value="asia">Asia</option>
+                    </select>
+                    
+                    <label for="game-mode">Game Mode:</label>
+                    <select id="game-mode" required>
+                        <option value="default">Default</option>
+                        <option value="classic">Classic</option>
+                        <option value="ranked">Ranked</option>
+                    </select>
+                    
+                    <label for="score">Score:</label>
+                    <input type="number" id="score" required>
+                    
+                    <button type="submit">Update Score</button>
+                </form>
+                
+                <div id="leaderboard-response" class="response"></div>
+                <div id="leaderboard-status" class="status"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="websocket-tab" class="tab-content">
+        <div class="container">
+            <div class="panel">
+                <h2>WebSocket Connection</h2>
+                <button id="connect-ws">Connect to WebSocket</button>
+                <button id="disconnect-ws" disabled>Disconnect</button>
+                
+                <div id="ws-status" class="status"></div>
+                
+                <h3>WebSocket Events</h3>
+                <form id="ws-register-form">
+                    <label for="ws-player-id">Player ID:</label>
+                    <input type="text" id="ws-player-id">
+                    
+                    <label for="ws-player-name">Player Name:</label>
+                    <input type="text" id="ws-player-name">
+                    
+                    <label for="ws-player-region">Region:</label>
+                    <select id="ws-player-region">
+                        <option value="global">Global</option>
+                        <option value="na">North America</option>
+                        <option value="eu">Europe</option>
+                        <option value="asia">Asia</option>
+                    </select>
+                    
+                    <button type="submit">Register Player</button>
+                </form>
+                
+                <form id="ws-score-form">
+                    <label for="ws-score-player-id">Player ID:</label>
+                    <input type="text" id="ws-score-player-id">
+                    
+                    <label for="ws-score-region">Region:</label>
+                    <select id="ws-score-region">
+                        <option value="global">Global</option>
+                        <option value="na">North America</option>
+                        <option value="eu">Europe</option>
+                        <option value="asia">Asia</option>
+                    </select>
+                    
+                    <label for="ws-game-mode">Game Mode:</label>
+                    <select id="ws-game-mode">
+                        <option value="default">Default</option>
+                        <option value="classic">Classic</option>
+                        <option value="ranked">Ranked</option>
+                    </select>
+                    
+                    <label for="ws-score">Score:</label>
+                    <input type="number" id="ws-score">
+                    
+                    <button type="submit">Update Score</button>
+                </form>
+                
+                <form id="ws-leaderboard-form">
+                    <label for="ws-lb-region">Region:</label>
+                    <select id="ws-lb-region">
+                        <option value="global">Global</option>
+                        <option value="na">North America</option>
+                        <option value="eu">Europe</option>
+                        <option value="asia">Asia</option>
+                    </select>
+                    
+                    <label for="ws-lb-game-mode">Game Mode:</label>
+                    <select id="ws-lb-game-mode">
+                        <option value="default">Default</option>
+                        <option value="classic">Classic</option>
+                        <option value="ranked">Ranked</option>
+                    </select>
+                    
+                    <label for="ws-lb-limit">Limit:</label>
+                    <input type="number" id="ws-lb-limit" value="10" min="1" max="100">
+                    
+                    <button type="submit">Get Leaderboard</button>
+                </form>
+                
+                <h3>WebSocket Messages</h3>
+                <div id="ws-messages" class="response"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+let apiBaseUrl = 'http://localhost:3000';
+let socket = null;
+
+// DOM elements
+const configForm = document.getElementById('config-form');
+const playerForm = document.getElementById('player-form');
+const getPlayerForm = document.getElementById('get-player-form');
+const leaderboardForm = document.getElementById('leaderboard-form');
+const scoreForm = document.getElementById('score-form');
+const connectWsBtn = document.getElementById('connect-ws');
+const disconnectWsBtn = document.getElementById('disconnect-ws');
+const wsRegisterForm = document.getElementById('ws-register-form');
+const wsScoreForm = document.getElementById('ws-score-form');
+const wsLeaderboardForm = document.getElementById('ws-leaderboard-form');
+
+// Response areas
+const playerResponse = document.getElementById('player-response');
+const leaderboardResponse = document.getElementById('leaderboard-response');
+const wsMessages = document.getElementById('ws-messages');
+
+// Status elements
+const playerStatus = document.getElementById('player-status');
+const leaderboardStatus = document.getElementById('leaderboard-status');
+const wsStatus = document.getElementById('ws-status');
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    // Load saved config
+    const savedConfig = localStorage.getItem('leaderboardConfig');
+    if (savedConfig) {
+        const config = JSON.parse(savedConfig);
+        apiBaseUrl = config.apiBaseUrl;
+        document.getElementById('api-base-url').value = apiBaseUrl;
+    }
+    
+    // Set up form submissions
+    configForm.addEventListener('submit', handleConfigSubmit);
+    playerForm.addEventListener('submit', handlePlayerSubmit);
+    getPlayerForm.addEventListener('submit', handleGetPlayerSubmit);
+    leaderboardForm.addEventListener('submit', handleLeaderboardSubmit);
+    scoreForm.addEventListener('submit', handleScoreSubmit);
+    connectWsBtn.addEventListener('click', handleConnectWs);
+    disconnectWsBtn.addEventListener('click', handleDisconnectWs);
+    wsRegisterForm.addEventListener('submit', handleWsRegister);
+    wsScoreForm.addEventListener('submit', handleWsScoreSubmit);
+    wsLeaderboardForm.addEventListener('submit', handleWsLeaderboardSubmit);
+});
+
+// Tab navigation
+function openTab(tabId) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Deactivate all tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Activate the selected tab
+    document.getElementById(tabId).classList.add('active');
+    event.currentTarget.classList.add('active');
+}
+
+// Handle configuration
+function handleConfigSubmit(e) {
+    e.preventDefault();
+    apiBaseUrl = document.getElementById('api-base-url').value;
+    
+    // Save to localStorage
+    localStorage.setItem('leaderboardConfig', JSON.stringify({
+        apiBaseUrl
+    }));
+    
+    showStatus(playerStatus, 'Configuration saved', 'success');
+}
+
+// REST API Handlers
+async function handlePlayerSubmit(e) {
+    e.preventDefault();
+    
+    const playerId = document.getElementById('player-id').value;
+    const name = document.getElementById('player-name').value;
+    const region = document.getElementById('player-region').value;
+    
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/players`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                playerId,
+                name,
+                region
+            })
+        });
+        
+        const data = await response.json();
+        displayResponse(playerResponse, data);
+        
+        if (response.ok) {
+            showStatus(playerStatus, 'Player registered successfully', 'success');
+        } else {
+            showStatus(playerStatus, `Error: ${data.error}`, 'error');
+        }
+    } catch (err) {
+        showStatus(playerStatus, `Error: ${err.message}`, 'error');
+        displayResponse(playerResponse, { error: err.message });
+    }
+}
+
+async function handleGetPlayerSubmit(e) {
+    e.preventDefault();
+    
+    const playerId = document.getElementById('get-player-id').value;
+    
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/players/${playerId}`);
+        const data = await response.json();
+        displayResponse(playerResponse, data);
+        
+        if (response.ok) {
+            showStatus(playerStatus, 'Player fetched successfully', 'success');
+        } else {
+            showStatus(playerStatus, `Error: ${data.error}`, 'error');
+        }
+    } catch (err) {
+        showStatus(playerStatus, `Error: ${err.message}`, 'error');
+        displayResponse(playerResponse, { error: err.message });
+    }
+}
+
+async function handleLeaderboardSubmit(e) {
+    e.preventDefault();
+    
+    const region = document.getElementById('lb-region').value;
+    const gameMode = document.getElementById('lb-game-mode').value;
+    const limit = document.getElementById('lb-limit').value;
+    
+    try {
+        const response = await fetch(
+            `${apiBaseUrl}/api/leaderboard?region=${region}&gameMode=${gameMode}&limit=${limit}`
+        );
+        const data = await response.json();
+        displayResponse(leaderboardResponse, data);
+        
+        if (response.ok) {
+            showStatus(leaderboardStatus, 'Leaderboard fetched successfully', 'success');
+        } else {
+            showStatus(leaderboardStatus, `Error: ${data.error}`, 'error');
+        }
+    } catch (err) {
+        showStatus(leaderboardStatus, `Error: ${err.message}`, 'error');
+        displayResponse(leaderboardResponse, { error: err.message });
+    }
+}
+
+async function handleScoreSubmit(e) {
+    e.preventDefault();
+    
+    const playerId = document.getElementById('score-player-id').value;
+    const region = document.getElementById('score-region').value;
+    const gameMode = document.getElementById('game-mode').value;
+    const score = document.getElementById('score').value;
+    
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/leaderboard/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                playerId,
+                region,
+                gameMode,
+                score
+            })
+        });
+        
+        const data = await response.json();
+        displayResponse(leaderboardResponse, data);
+        
+        if (response.ok) {
+            showStatus(leaderboardStatus, 'Score updated successfully', 'success');
+        } else {
+            showStatus(leaderboardStatus, `Error: ${data.error}`, 'error');
+        }
+    } catch (err) {
+        showStatus(leaderboardStatus, `Error: ${err.message}`, 'error');
+        displayResponse(leaderboardResponse, { error: err.message });
+    }
+}
+
+// Socket.IO Handlers
+function handleConnectWs() {
+    // Initialize Socket.IO connection
+    socket = io(apiBaseUrl, {
+        reconnectionAttempts: 3,
+        reconnectionDelay: 1000,
+        transports: ['websocket']
+    });
+
+    socket.on('connect', () => {
+        showStatus(wsStatus, 'Socket.IO connected successfully', 'success');
+        connectWsBtn.disabled = true;
+        disconnectWsBtn.disabled = false;
+        addWsMessage('System: Socket.IO connection established');
+        
+        // Enable WebSocket forms
+        document.querySelectorAll('#websocket-tab button[type="submit"]').forEach(btn => {
+            btn.disabled = false;
+        });
+    });
+
+    socket.on('disconnect', (reason) => {
+        showStatus(wsStatus, `Socket.IO disconnected: ${reason}`, 'error');
+        connectWsBtn.disabled = false;
+        disconnectWsBtn.disabled = true;
+        addWsMessage(`System: Socket.IO connection closed (${reason})`);
+        
+        // Disable WebSocket forms
+        document.querySelectorAll('#websocket-tab button[type="submit"]').forEach(btn => {
+            btn.disabled = true;
+        });
+    });
+
+    socket.on('connect_error', (err) => {
+        showStatus(wsStatus, `Socket.IO connection error: ${err.message}`, 'error');
+        addWsMessage(`System: Socket.IO error: ${err.message}`);
+    });
+
+    // Listen to all events
+    socket.onAny((event, ...args) => {
+        addWsMessage(`Server event [${event}]: ${JSON.stringify(args)}`);
+    });
+}
+
+function handleDisconnectWs() {
+    if (socket) {
+        socket.disconnect();
+    }
+}
+
+function handleWsRegister(e) {
+    e.preventDefault();
+    if (!socket || !socket.connected) {
+        showStatus(wsStatus, 'Socket.IO not connected', 'error');
+        return;
+    }
+    
+    const playerId = document.getElementById('ws-player-id').value;
+    const name = document.getElementById('ws-player-name').value;
+    const region = document.getElementById('ws-player-region').value;
+    
+    socket.emit('register', {
+        playerId,
+        name,
+        region
+    }, (response) => {
+  if (response.success) {
+    console.log('Registration successful:', response.player);
+  } else {
+    console.error('Registration failed:', response.error);
+  }
+});
+    
+    addWsMessage(`Client: Emitted register event for ${name} (${playerId})`);
+}
+
+function handleWsScoreSubmit(e) {
+    e.preventDefault();
+    if (!socket || !socket.connected) {
+        showStatus(wsStatus, 'Socket.IO not connected', 'error');
+        return;
+    }
+    
+    const playerId = document.getElementById('ws-score-player-id').value;
+    const region = document.getElementById('ws-score-region').value;
+    const gameMode = document.getElementById('ws-game-mode').value;
+    const score = document.getElementById('ws-score').value;
+    
+    socket.emit('updateScore', {
+        playerId,
+        region,
+        gameMode,
+        score
+    });
+    
+    addWsMessage(`Client: Emitted score update for ${playerId} (${score})`);
+}
+
+function handleWsLeaderboardSubmit(e) {
+    e.preventDefault();
+    if (!socket || !socket.connected) {
+        showStatus(wsStatus, 'Socket.IO not connected', 'error');
+        return;
+    }
+    
+    const region = document.getElementById('ws-lb-region').value;
+    const gameMode = document.getElementById('ws-lb-game-mode').value;
+    const limit = document.getElementById('ws-lb-limit').value;
+    
+    socket.emit('getLeaderboard', {
+        region,
+        gameMode,
+        limit
+    }, (response) => {
+        // This callback handles the server's response
+        addWsMessage(`Server leaderboard response: ${JSON.stringify(response)}`);
+    });
+    
+    addWsMessage(`Client: Requested leaderboard for ${region}/${gameMode}`);
+}
+
+// Helper functions
+function displayResponse(element, data) {
+    element.textContent = JSON.stringify(data, null, 2);
+}
+
+function showStatus(element, message, type) {
+    element.textContent = message;
+    element.className = `status ${type}`;
+    
+    // Hide after 5 seconds
+    setTimeout(() => {
+        element.textContent = '';
+        element.className = 'status';
+    }, 5000);
+}
+
+function addWsMessage(message) {
+    const messageElement = document.createElement('div');
+    messageElement.textContent = message;
+    messageElement.style.marginBottom = '5px';
+    wsMessages.appendChild(messageElement);
+    wsMessages.scrollTop = wsMessages.scrollHeight;
+}
+    </script>
+</body>
+</html>
